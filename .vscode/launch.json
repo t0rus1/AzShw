@@ -14,7 +14,7 @@
             "args": [
                 "Rese",
                 "Tickdaten",
-                "4"
+                "100"
             ],
             "cwd": "${workspaceFolder}",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console

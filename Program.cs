@@ -91,8 +91,9 @@ namespace AzShw
                     Console.WriteLine($"Downloading {indexUriString} ...");
                     if (Uri.TryCreate(indexUriString, UriKind.Absolute, out Uri indexUri))
                     {
-                        //Task-based asynchronous version
-                        string indexText = await webClient.DownloadStringTaskAsync(indexUri);
+                        //
+                        string indexText = await webClient.DownloadStringTaskAsync(indexUri); // Task-based asynchronous version
+                        // 
 
                         string[] indexLines = indexText.Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
                         Console.WriteLine($"Index contains {indexLines.Length} lines.");
