@@ -11,8 +11,11 @@ namespace AzShw
 {
     class Program
     {
+        const string version = "0.0.0.1";
+
         private const string DATABASE_ID = "Sharewatcher";
-        private string[] CollectionIds = { "TradesIndex", "BourseETR", "BourseFFM" }; // 1st entry MUST be the source of the Inhalt.txt index 
+        private static string[] collectionIds = { "TradesIndex", "BourseETR", "BourseFFM" }; // 1st entry MUST be the container name which is source of the Inhalt.txt entries
+        private static string tradesIndexCollectionId = collectionIds[0];
 
         private DocumentClient docClient;
 
@@ -39,9 +42,9 @@ namespace AzShw
 
         private async Task CheckDocumentCollections()
         {
-            foreach (string collectionId in CollectionIds)
+            foreach (string collectionId in collectionIds)
             {
-                await docClient.CreateDocumentCollectionIfNotExistsAsync(UriFactory.CreateDatabaseUri(DATABASE_ID), new DocumentCollection { Id = collectionId });                
+                await docClient.CreateDocumentCollectionIfNotExistsAsync(UriFactory.CreateDatabaseUri(DATABASE_ID), new DocumentCollection { Id = collectionId });
             }
         }
 
@@ -91,15 +94,15 @@ namespace AzShw
                     Console.WriteLine($"Downloading {indexUriString} ...");
                     if (Uri.TryCreate(indexUriString, UriKind.Absolute, out Uri indexUri))
                     {
-                        //
+                        // .........................
                         string indexText = await webClient.DownloadStringTaskAsync(indexUri); // Task-based asynchronous version
-                        // 
+                        // .........................
 
                         string[] indexLines = indexText.Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
                         Console.WriteLine($"Index contains {indexLines.Length} lines.");
 
                         // collectionIds[0] assumed to be TradesIndex
-                        retGuidance.Payload = await InhaltOperations.ImportNewInhaltEntries(docClient, DATABASE_ID, CollectionIds[0], indexLines, daysBack);
+                        retGuidance.Payload = await InhaltOperations.ImportNewInhaltEntries(docClient, DATABASE_ID, tradesIndexCollectionId, indexLines, daysBack);
 
                         if (retGuidance.Payload != "")
                         {
@@ -150,7 +153,7 @@ namespace AzShw
                 else
                 {
                     //proceed to import individual share trading activity from recent trading data files (*.TXT)
-                    ShareTrades.ImportTradingActivity(p.docClient, DATABASE_ID, trawlGuidance.Payload);
+                    ShareTrades.ImportTradingActivity(p.docClient, DATABASE_ID, tradesIndexCollectionId, trawlGuidance.Payload);
 
                 }
 
