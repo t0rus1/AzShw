@@ -11,7 +11,7 @@ namespace AzShw
 {
     class Program
     {
-        const string version = "0.0.0.1";
+        const string version = "0.0.0.2";
 
         private const string DATABASE_ID = "Sharewatcher";
         private static string[] collectionIds = { "TradesIndex", "BourseETR", "BourseFFM" }; // 1st entry MUST be the container name which is source of the Inhalt.txt entries
@@ -19,28 +19,10 @@ namespace AzShw
 
         private DocumentClient docClient;
 
+        private string[] bsbCredentialsPair = new string[] { "", "" };
 
-        private static void ParseArguments(string[] args, out string uname, out string pass, out int daysBackTrawl)
-        {
-            uname = args.Length >= 1 ? args[0] : "";
-            pass = args.Length >= 2 ? args[1] : "";
-            daysBackTrawl = 1;
-            if (args.Length >= 3)
-            {
-                if (Int32.TryParse(args[2], out int back)) daysBackTrawl = back;
-            }
-        }
 
-        private async Task SetupOperations()
-        {
-            ProvisionDocumentClient();
-            await CheckDatabase();
-            await CheckDocumentCollections();
-            Console.WriteLine($"Database and Collections validation complete");
-
-        }
-
-        private async Task CheckDocumentCollections()
+        private async Task CheckOrCreateDocumentCollections()
         {
             foreach (string collectionId in collectionIds)
             {
@@ -48,7 +30,7 @@ namespace AzShw
             }
         }
 
-        private async Task CheckDatabase()
+        private async Task CheckOrCreateDatabase()
         {
             await docClient.CreateDatabaseIfNotExistsAsync(new Database { Id = DATABASE_ID });
         }
@@ -58,103 +40,46 @@ namespace AzShw
             docClient = new DocumentClient(new Uri(ConfigurationManager.AppSettings["accountEndpoint"]), ConfigurationManager.AppSettings["accountKey"]);
         }
 
-
-        // Download Inhalt.txt from the bsb.de site 
-        // and inserts the last daysBack entries into the InhaltIndex collection container
-        // The file Inhalt.txt is not saved
-        private async Task<Guidance<string>> TrawlBsbIndex(int daysBack, string userName, string pass = "")
+        private async Task SetupOperations()
         {
-            Console.WriteLine("TrawlBsbShareData: Downloading Index file:");
-            var credentialsPair = new string[] { "", "" };
+            ProvisionDocumentClient();
 
-            if (pass != "")
-            {
-                //use the passed in credentials
-                credentialsPair[0] = userName;
-                credentialsPair[1] = pass;
-            }
-            else
-            {
-                //get credentials from the user now
-                Console.Write("Bsb credentials are required, enter username,password: ");
-                credentialsPair = Console.ReadLine().Split(",");
-            }
-            Console.WriteLine($"Using credentials {credentialsPair[0]}, {credentialsPair[1]} & daysBack {daysBack}");
+            await CheckOrCreateDatabase();
+            await CheckOrCreateDocumentCollections();
 
-
-            Guidance<string> retGuidance = new Guidance<string>(StopGo.Stop, "");
-            using (WebClient webClient = new WebClient())
-            {
-                webClient.Credentials = new NetworkCredential(credentialsPair[0], credentialsPair[1]);
-
-                try
-                {
-                    //need to get index file like so  http://www.bsb-software.de/rese/Inhalt.txt
-                    var indexUriString = ConfigurationManager.AppSettings["tradesUrl"] + ConfigurationManager.AppSettings["tradesIndex"];
-                    Console.WriteLine($"Downloading {indexUriString} ...");
-                    if (Uri.TryCreate(indexUriString, UriKind.Absolute, out Uri indexUri))
-                    {
-                        // .........................
-                        string indexText = await webClient.DownloadStringTaskAsync(indexUri); // Task-based asynchronous version
-                        // .........................
-
-                        string[] indexLines = indexText.Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-                        Console.WriteLine($"Index contains {indexLines.Length} lines.");
-
-                        // collectionIds[0] assumed to be TradesIndex
-                        retGuidance.Payload = await InhaltOperations.ImportNewInhaltEntries(docClient, DATABASE_ID, tradesIndexCollectionId, indexLines, daysBack);
-
-                        if (retGuidance.Payload != "")
-                        {
-                            retGuidance.Status = StopGo.Go;
-                            //Console.WriteLine($"Will import share trade files, starting with {retGuidance.Payload}...");
-                        }
-                        else
-                        {
-                            retGuidance.Status = StopGo.Stop;
-                            //Console.WriteLine("Nothing further to do");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Error. Could not form Inhalt Uri from {indexUriString}");
-                    }
-                }
-                catch (System.Exception e)
-                {
-                    Console.WriteLine("Exception: {0}", e.Message);
-                }
-            }
-
-            return retGuidance; // includes stop|go plus importation start date if applicable
+            Console.WriteLine($"SetupOperations complete");
 
         }
 
+        // Load the referenced credentialsPair string array with passed credentials else, if empty prompts for same
         static async Task Main(string[] args)
         {
             //Console.WriteLine(args[0]);
             string uname, pass;
             int daysBackTrawl;
-            ParseArguments(args, out uname, out pass, out daysBackTrawl);
+
+            //get these from the command line
+            Helper.ParseArguments(args, out uname, out pass, out daysBackTrawl);
 
             Guidance<string> trawlGuidance;
             try
             {
                 Program p = new Program();
 
-                await p.SetupOperations();
+                Helper.Fill_BSB_Credentials(uname, pass, ref p.bsbCredentialsPair);
 
-                trawlGuidance = await p.TrawlBsbIndex(daysBackTrawl, uname, pass);
+                await p.SetupOperations(); // get DocumentClient, ensure Database and Bourse containier collections as well as TradesIndex container exist
 
-                if (trawlGuidance.Payload == "")
+                trawlGuidance = await Trawl.TrawlBsbIndexIntoTradesIndex(p.bsbCredentialsPair, daysBackTrawl); //Payload will indicate replenish date
+
+                if (trawlGuidance.Payload.Length == 0)
                 {
                     Console.WriteLine("Nothing further to do");
                 }
-                else
+                else if (trawlGuidance.Status.Equals(StopGo.Go) && trawlGuidance.Payload.Length > 0)
                 {
-                    //proceed to import individual share trading activity from recent trading data files (*.TXT)
+                    //proceed to import individual share trading activity from recent trading data files (*.TXT)                    
                     ShareTrades.ImportTradingActivity(p.docClient, DATABASE_ID, tradesIndexCollectionId, trawlGuidance.Payload);
-
                 }
 
             }

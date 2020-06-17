@@ -70,6 +70,16 @@ namespace AzShw
         //2017_01_02.TXT 22164028 02.01.2017 22:30:38
         //2017_01_03.TXT 25772714 03.01.2017 22:30:50
         //2017_01_04.TXT 24926780 04.01.2017 22:30:50
+
+        /// <summary>
+        /// Creates and inserts documents (each created from a single Inhalt.TXT line) into the TradesIndex document collection
+        /// </summary>
+        /// <param name="client"></param>
+        /// <param name="databaseName"></param>
+        /// <param name="collectionName"></param>
+        /// <param name="inhalts"></param>
+        /// <param name="daysBack"></param>
+        /// <returns></returns>
         public static async Task<string> ImportNewInhaltEntries(DocumentClient client, string databaseName, string collectionName, string[] inhalts, int daysBack)
         {
 

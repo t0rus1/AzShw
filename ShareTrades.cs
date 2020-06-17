@@ -7,13 +7,23 @@ namespace AzShw
 {
     public static class ShareTrades
     {
+        /// <summary>
+        /// From each of the entries listed after importStartDate in the TradesIndex container
+        /// get the associated text file of trading records, build a TradeHash and insert into the
+        /// corresponding bourse container
+        /// </summary>
+        /// <param name="docClient"></param>
+        /// <param name="databaseId"></param>
+        /// <param name="tradesIndexCollectionId"></param>
+        /// <param name="importStartDate"></param>
+        /// <returns></returns>
         public static Guidance<string> ImportTradingActivity(DocumentClient docClient, string databaseId, string tradesIndexCollectionId, string importStartDate)
         {
             // strategy: 
             // from each of the TXT files listed after importStartDate in the TradesIndex container /collection 
             // build a dictionary keyed on bourse, share name and number
 
-            int entriesGotten = QueryInhaltEntries(docClient, databaseId, tradesIndexCollectionId, importStartDate);
+            int entriesGotten = QueryTradeIndexEntries(docClient, databaseId, tradesIndexCollectionId, importStartDate);
 
             Guidance<string> retGuidance = new Guidance<string>(StopGo.Go, $"{entriesGotten} index entries returned");
 
@@ -21,7 +31,7 @@ namespace AzShw
         }
 
 
-        private static int QueryInhaltEntries(DocumentClient docClient, string databaseId, string tradesIndexCollectionId, string importStartDate)
+        private static int QueryTradeIndexEntries(DocumentClient docClient, string databaseId, string tradesIndexCollectionId, string importStartDate)
         {
 
             // Set some common query options
